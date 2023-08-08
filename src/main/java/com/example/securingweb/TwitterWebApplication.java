@@ -8,10 +8,10 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
 
 @SpringBootApplication
-public class SecuringWebApplication {
+public class TwitterWebApplication {
 
 	public static void main(String[] args) throws Throwable {
-		SpringApplication.run(SecuringWebApplication.class, args);
+		SpringApplication.run(TwitterWebApplication.class, args);
 	}
 
 	@Bean
