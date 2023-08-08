@@ -1,5 +1,9 @@
 package com.example.securingweb;
 
+import com.mashape.unirest.http.HttpResponse;
+import com.mashape.unirest.http.Unirest;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -7,7 +11,13 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.util.UriUtils;
 
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.HashMap;
 import java.util.Map;
 
 @Controller
@@ -36,74 +46,53 @@ public class TwitterDataController {
     @PostMapping(value = "/queryCount")
     public String queryCount(@ModelAttribute TwitterCountRequest twitterCountRequest, Model model) {
         model.addAttribute("countRequest", twitterCountRequest);
-        logger.info("Twitter count - query name {}, query {}, from date {}. to date {}", twitterCountRequest.getQueryName(), twitterCountRequest.getQuery());
+        logger.info("Processing tweets count request with basic access = "+ twitterCountRequest.getBasicAccess());
 
-        if (twitterCountRequest.getQuery().length() > 1024) {
-//            model.addAllAttributes("message", "Query length exceeded beyond 1024 chars");
-            return "hello";
-        }
+        int allowedQueryLength = 512;
 
         if (StringUtils.isEmpty(twitterCountRequest.getQueryName()) || StringUtils.isEmpty(twitterCountRequest.getQuery())) {
-//            model.put("message", "QueryName, query, fromDate, toDate all are required");
+            model.addAttribute("message", "QueryName, query are required");
             return "hello";
         }
 
-        logger.info("Basic access enabled: " + twitterCountRequest.getBasicAccess());
+        logger.info("Twitter count - query name {}, query {}", twitterCountRequest.getQueryName(), twitterCountRequest.getQuery());
 
-//        logger.info("Creating twitter count request for query {}", queryName);
-//        TwitterCountRequest countRequest = new TwitterCountRequest();
-//        countRequest.setQuery(query);
-//        countRequest.setFromDate(fromDate);
-//        countRequest.setToDate(toDate);
-//        countRequest.setBucket("day");
-//
-//        int twitterCallsMade = 0;
-//        int totalCount = 0;
-//        JSONParser parser = new JSONParser();
-//        JSONObject jsonObject;
-//        boolean error = false;
-//        try {
-//            ObjectMapper mapper = new ObjectMapper();
-//            mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
-//
-//            while (true) {
-//                String jsonString = mapper.writeValueAsString(countRequest);
-//                HttpResponse<String> response = Unirest.post("https://api.twitter.com/2/tweets/counts/recent")
-//                        .header("Content-Type", "application/json")
-//                        .header("Authorization", "Bearer AAAAAAAAAAAAAAAAAAAAAL7x8QAAAAAA1dGPIO3EUkSc9MawaBuZIGfPscM%3DMD5nBaB6oSzcHWfQdm309a0IlUWr1nqpAvuKN2y55JNBxLsZ4t")
-//                        .header("cache-control", "no-cache")
-//                        .header("Postman-Token", "4d607bef-8c2d-416a-9aa8-5721051a2eb8")
-//                        .body(jsonString)
-//                        .asString();
-//
-//                jsonObject = (JSONObject) parser.parse(response.getBody());
-//                if (jsonObject.get("error") != null) {
-//                    error = true;
-//                    break;
-//                }
-//                Long count = (Long) jsonObject.get("totalCount");
-//                totalCount += count;
-//
-//                String next = (String) jsonObject.get("next");
-//                countRequest.setNext(next);
-//
-//                twitterCallsMade++;
-//                if (next == null) {
-//                    logger.info("Total twitter count queries made {}", twitterCallsMade);
-//                    break;
-//                }
-//            }
-//            if (error) {
-//                model.put("message", ((HashMap)jsonObject.get("error")).get("message"));
-//                logger.info("Error happened while getting query count for query name {}", queryName);
-//            } else {
-//                logger.info("Success getting query count for query name {}", queryName);
-//                model.put("message", "Total Tweets for the query: " + totalCount);
-//            }
-//        } catch (Exception e) {
-//            model.put("message", e.toString());
-//            return "hello";
-//        }
+        if (twitterCountRequest.getQuery().length() > allowedQueryLength) {
+            model.addAttribute("message", String.format("Query length exceeded beyond %d chars", allowedQueryLength));
+            return "hello";
+        }
+
+        logger.info("Creating twitter count request for query {}", twitterCountRequest.getQueryName());
+
+        JSONParser parser = new JSONParser();
+        Unirest.setTimeouts(0, 0);
+        try {
+            HttpResponse<String> response = Unirest.get("https://api.twitter.com/2/tweets/counts/recent?granularity=day&query="+ UriUtils.encode(twitterCountRequest.getQuery(), StandardCharsets.UTF_8.toString()))
+                    .header("Authorization", "Bearer AAAAAAAAAAAAAAAAAAAAAL7x8QAAAAAA1dGPIO3EUkSc9MawaBuZIGfPscM%3DMD5nBaB6oSzcHWfQdm309a0IlUWr1nqpAvuKN2y55JNBxLsZ4t")
+                    .header("Cookie", "guest_id=v1%3A169114943501622797; guest_id_ads=v1%3A169114943501622797; guest_id_marketing=v1%3A169114943501622797; personalization_id=\"v1_qK+w8TOGRs8/240Jkks7wQ==\"")
+                    .asString();
+            JSONObject jsonObject = (JSONObject) parser.parse(response.getBody());
+            if (response.getStatus() == 200) {
+                logger.info("Success getting query count for query name {}", twitterCountRequest.getQueryName());
+                String remainingRequestForRateLimitWindow = response.getHeaders().getFirst("x-rate-limit-remaining");
+                String rateLimitResetTime = response.getHeaders().getFirst("x-rate-limit-reset");
+                model.addAttribute("message", "Total Tweets for the query: " + ((HashMap) jsonObject.get("meta")).get("total_tweet_count") + "\n\n" +
+                        String.format("You can do %s more request until %s", remainingRequestForRateLimitWindow,
+                                LocalDateTime.ofInstant(Instant.ofEpochSecond(Long.valueOf(rateLimitResetTime)), ZoneOffset.UTC)));
+            }
+            if (jsonObject.get("errors") != null) {
+                model.addAttribute("message", jsonObject.get("detail"));
+                logger.info("Error happened while getting query count for query name {}", twitterCountRequest.getQueryName());
+            }
+            if (response.getStatus() == 429) {
+                String rateLimitResetTime = response.getHeaders().getFirst("x-rate-limit-reset");
+                model.addAttribute("message", "You have reached the rate limit, try after = " + LocalDateTime.ofInstant(Instant.ofEpochSecond(Long.valueOf(rateLimitResetTime)), ZoneOffset.UTC));
+                logger.info("Rate limit reached while getting query count for query name {}", twitterCountRequest.getQueryName());
+            }
+        } catch (Exception e) {
+            model.addAttribute("message", e.toString());
+            return "hello";
+        }
         logger.info("Done with all the processing for query name {}", twitterCountRequest.getQueryName());
         return "hello";
     }
