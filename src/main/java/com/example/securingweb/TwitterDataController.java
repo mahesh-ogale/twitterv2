@@ -4,10 +4,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
 import org.springframework.util.StringUtils;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
@@ -23,8 +22,9 @@ public class TwitterDataController {
     EmailService emailService;
 
     @RequestMapping("/")
-    public String welcome(Map<String, Object> model) {
+    public String welcome(Model model) {
 //        emailService.sendEmail("test", "10 pages uploaded");
+        model.addAttribute("countRequest", new TwitterCountRequest());
         return "hello";
     }
 
@@ -33,22 +33,22 @@ public class TwitterDataController {
         return "login";
     }
 
-    @RequestMapping("/queryCount")
-    public String queryCount(@RequestParam("queryName") String queryName, @RequestParam("query") String query, @RequestParam(name="basicAccess", required = false) Boolean basicAccess, Map<String, Object> model) {
+    @PostMapping(value = "/queryCount")
+    public String queryCount(@ModelAttribute TwitterCountRequest twitterCountRequest, Model model) {
+        model.addAttribute("countRequest", twitterCountRequest);
+        logger.info("Twitter count - query name {}, query {}, from date {}. to date {}", twitterCountRequest.getQueryName(), twitterCountRequest.getQuery());
 
-        logger.info("Twitter count - query name {}, query {}, from date {}. to date {}", queryName, query);
-
-        if (query.length() > 1024) {
-            model.put("message", "Query length exceeded beyond 1024 chars");
+        if (twitterCountRequest.getQuery().length() > 1024) {
+//            model.addAllAttributes("message", "Query length exceeded beyond 1024 chars");
             return "hello";
         }
 
-        if (StringUtils.isEmpty(queryName) || StringUtils.isEmpty(query)) {
-            model.put("message", "QueryName, query, fromDate, toDate all are required");
+        if (StringUtils.isEmpty(twitterCountRequest.getQueryName()) || StringUtils.isEmpty(twitterCountRequest.getQuery())) {
+//            model.put("message", "QueryName, query, fromDate, toDate all are required");
             return "hello";
         }
 
-        logger.info("Basic access enabled: " + basicAccess);
+        logger.info("Basic access enabled: " + twitterCountRequest.getBasicAccess());
 
 //        logger.info("Creating twitter count request for query {}", queryName);
 //        TwitterCountRequest countRequest = new TwitterCountRequest();
@@ -104,14 +104,14 @@ public class TwitterDataController {
 //            model.put("message", e.toString());
 //            return "hello";
 //        }
-        logger.info("Done with all the processing for query name {}", queryName);
+        logger.info("Done with all the processing for query name {}", twitterCountRequest.getQueryName());
         return "hello";
     }
 
-    @RequestMapping("/download")
+    @RequestMapping(value = "/download", method = RequestMethod.POST)
     public String download(@RequestParam("queryName") String queryName, @RequestParam("query") String query, @RequestParam("fromDate") String fromDate,
                            @RequestParam("toDate") String toDate, Map<String, Object> model) {
-        logger.info("Twitter download - query name {}, query {}, from date {}. to date {}", queryName, query, fromDate, toDate);
+        logger.info("Twitter download12 - query name {}, query {}, from date {}. to date {}", queryName, query, fromDate, toDate);
 
         if (query.length() > 1024) {
             model.put("message", "Query length exceeded beyond 1024 chars");

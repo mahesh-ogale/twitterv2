@@ -12,11 +12,11 @@
         <h2>
             Twitter Query
         </h2>
-        <form method="post">
-            Query Name:<input type="text" required="true" name="queryName" maxlength="20"/>
+        <form action="#" th:action="@{/queryCount}" th:object="${countRequest}" method="post">
+            Query Name:<input type="text" required="true" th:field="*{queryName}" maxlength="20"/>
             <br/>
             Twitter Query:<br/>
-            <textarea required="true" name="query" id="query" rows="10" cols="70" maxlength="1024"></textarea>
+            <textarea required="true" th:field="*{query}" rows="10" cols="70" maxlength="1024"></textarea>
 
             <div id="count_message"></div>
             <br/>
@@ -24,8 +24,7 @@
             <input type="checkbox" name="basicAccess" checked="true" />
             <br/><br/>
 
-            <input type="submit" class="btn btn-lg btn-primary" value="Get Twitter Count" formaction="/queryCount" style="margin-right: 20px;"/>
-            <input type="submit" class="btn btn-lg btn-primary" value="Schedule Twitter Download" formaction="/download"/>
+            <input type="submit" class="btn btn-lg btn-primary" value="Get Twitter Count"/>
         </form>
 
         <div style="width: 600px; display: table-cell;">
