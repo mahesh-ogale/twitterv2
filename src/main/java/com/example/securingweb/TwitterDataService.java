@@ -18,9 +18,12 @@ import org.json.simple.parser.JSONParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.io.IOException;
 import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -38,6 +41,9 @@ public class TwitterDataService {
 
     @Autowired
     EmailService emailService;
+
+    @Autowired
+    SseController sseController;
 
     @Job(name = "The sample job with variable %0", retries = 2)
     public void executeSampleJob(String variable) {
@@ -57,19 +63,28 @@ public class TwitterDataService {
         return count.get();
     }
 
-    @Job(name = "tweets download")
-    public void downloadTweets(String queryName, String query) throws InterruptedException {
+//    @Job(name = "tweets download")
+    @Async("asyncExecutor")
+    public void downloadTweets(String queryName, String query) throws InterruptedException, IOException {
 
         logger.info("Creating twitter download request for query name {}", queryName);
-        TimeUnit.SECONDS.sleep(10);
+
 //        TwitterRequestDownload downloadRequest = new TwitterRequestDownload();
 //        downloadRequest.setQuery(query);
 //        downloadRequest.setFromDate(fromDate);
 //        downloadRequest.setToDate(toDate);
 //        downloadRequest.setMaxResults(100l);
 
+//        SseEmitters.emptyMap();
 //        SseEmitters.addSseEmitter(queryName);
 //        SseEmitter sseEmitter = SseEmitters.getAll().get(queryName);
+
+        int i = 0;
+        while (i < 50) {
+            sseController.getEmitter().send("working on the query", MediaType.TEXT_PLAIN);
+            TimeUnit.SECONDS.sleep(2);
+            i++;
+        }
 //        try {
 //            ObjectMapper mapper = new ObjectMapper();
 //            mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
@@ -156,8 +171,8 @@ public class TwitterDataService {
 //            //                sseEmitter.send("Exception occurred while downloading tweets", MediaType.TEXT_PLAIN);
 //            emailService.sendEmail(queryName, "Exception occurred while downloading tweets" + e.getMessage());
 //        } finally {
-////            sseEmitter.complete();
-////            SseEmitters.getAll().remove(queryName);
+            sseController.getEmitter().complete();
+//            SseEmitters.getAll().remove(queryName);
 //        }
         logger.info("tweets downloaded successfully");
     }

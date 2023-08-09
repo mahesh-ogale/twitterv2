@@ -13,6 +13,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriUtils;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -101,7 +102,7 @@ public class TwitterDataController {
     }
 
     @PostMapping(value = "/download")
-    public String download(@ModelAttribute TwitterCountRequest twitterCountRequest, Model model) {
+    public String download(@ModelAttribute TwitterCountRequest twitterCountRequest, Model model) throws IOException, InterruptedException {
         model.addAttribute("countRequest", twitterCountRequest);
         logger.info("Twitter download12 - query name {}, query {}, from date {}. to date {}", twitterCountRequest.getQueryName(), twitterCountRequest.getQuery());
 
@@ -117,8 +118,9 @@ public class TwitterDataController {
 
         logger.info("Twitter download - calling download tweets");
 //        twitterService.downloadTweets(queryName, query, fromDate, toDate);
-        jobRunrController.downloadTweets();
-        model.addAttribute("message", "http://localhost:8000/dashboard/overview" + twitterCountRequest.getQueryName());
+//        jobRunrController.downloadTweets();
+        twitterService.downloadTweets(twitterCountRequest.getQueryName(), twitterCountRequest.getQuery());
+        model.addAttribute("message", "See the status below");
         logger.info("Twitter download complete for query {}", twitterCountRequest.getQueryName());
         return "hello";
     }

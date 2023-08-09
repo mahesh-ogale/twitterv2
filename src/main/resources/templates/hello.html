@@ -1,36 +1,105 @@
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="https://www.thymeleaf.org"
-      xmlns:sec="https://www.thymeleaf.org/thymeleaf-extras-springsecurity6">
-    <head>
-        <title>Hello World!</title>
-    </head>
-    <body>
-        <h1 th:inline="text">Hello <span th:remove="tag" sec:authentication="name">thymeleaf</span>!</h1>
+<html
+        xmlns="http://www.w3.org/1999/xhtml"
+        xmlns:th="https://www.thymeleaf.org"
+        xmlns:sec="https://www.thymeleaf.org/thymeleaf-extras-springsecurity6"
+>
+<head>
+    <title>Hello World!</title>
+    <link rel="stylesheet" th:href="@{styles.css}" type="text/css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+            href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;900&display=swap"
+            rel="stylesheet"
+    />
+</head>
+<body>
+<div class="intro">
+    <h1 th:inline="text">
+        Hello <span th:remove="tag" sec:authentication="name">thymeleaf</span>!
+    </h1>
+</div>
+<div class="intro">
+    <div id="sign_out">
         <form th:action="@{/logout}" method="post">
-            <input type="submit" value="Sign Out"/>
+            <input type="submit" value="Sign Out" class="signout_btn" />
         </form>
-        <h2>
-            Twitter Query
-        </h2>
-        <form action="#" th:action="@{/queryCount}" th:object="${countRequest}" method="post">
-            Query Name:<input type="text" required="true" th:field="*{queryName}" maxlength="20"/>
-            <br/>
-            Twitter Query:<br/>
-            <textarea required="true" th:field="*{query}" rows="10" cols="70" maxlength="1024"></textarea>
+    </div>
+</div>
+<div class="main_container">
+    <div class="left_sec">
+        <h2>Twitter Query</h2>
+        <form
+                action="#"
+                th:action="@{/queryCount}"
+                th:object="${countRequest}"
+                method="post"
+        >
+            Query Name:
+            <input
+                    type="text"
+                    required="true"
+                    th:field="*{queryName}"
+                    maxlength="20"
+            />
+            <br />
+            Twitter Query:<br />
+            <textarea
+                    required="true"
+                    th:field="*{query}"
+                    rows="10"
+                    cols="70"
+                    maxlength="1024"
+            ></textarea>
 
             <div id="count_message"></div>
-            <br/>
-            Twitter Basic access (uncheck for pro access)<br/>
+            <br />
+            Twitter Basic access (uncheck for pro access)<br />
             <input type="checkbox" name="basicAccess" checked="true" />
-            <br/><br/>
+            <br /><br />
 
-            <input type="submit" class="btn btn-lg btn-primary" value="Get Twitter Count"/>
-            <input type="submit" class="btn btn-lg btn-primary" value="Download tweets" th:formaction="'/download'">
+            <input
+                    class="get_count"
+                    type="submit"
+                    value="Get Twitter Count"
+            />
+
+            <input
+                    class="get_count"
+                    type="submit"
+                    value="Download tweets" th:formaction="'/download'"
+            />
         </form>
+    </div>
+    <!--end of left_sec-->
 
-        <div style="width: 600px; display: table-cell;">
-            <h2>Results</h2>
-            <h4>Check the status here <a target="_blank" th:href="${message}"><span th:text="${message}"></span></a></h4>
-        </div>
-    </body>
+    <div class="right_sec">
+        <h2>Results</h2>
+        <h4>
+            Check the status here
+            <a target="_blank" th:href="${message}"
+            ><span th:text="${message}"></span
+            ></a>
+        </h4>
+
+        <div id="events" style="overflow-y: scroll; height:400px;"></div>
+        <script>
+        const eventSource = new EventSource("/sse");
+
+        eventSource.onmessage = (event) => {
+            const div = document.createElement("div");
+            div.textContent = `Event received: ${event.data}`;
+            document.getElementById("events").appendChild(div);
+        };
+
+        eventSource.onerror = (error) => {
+            console.error("Error occurred:", error);
+            eventSource.close();
+        };
+        </script>
+
+    </div>
+</div>
+</body>
 </html>
