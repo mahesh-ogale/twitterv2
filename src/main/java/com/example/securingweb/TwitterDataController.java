@@ -31,6 +31,9 @@ public class TwitterDataController {
     @Autowired
     EmailService emailService;
 
+    @Autowired
+    JobRunrController jobRunrController;
+
     @RequestMapping("/")
     public String welcome(Model model) {
 //        emailService.sendEmail("test", "10 pages uploaded");
@@ -97,25 +100,26 @@ public class TwitterDataController {
         return "hello";
     }
 
-    @RequestMapping(value = "/download", method = RequestMethod.POST)
-    public String download(@RequestParam("queryName") String queryName, @RequestParam("query") String query, @RequestParam("fromDate") String fromDate,
-                           @RequestParam("toDate") String toDate, Map<String, Object> model) {
-        logger.info("Twitter download12 - query name {}, query {}, from date {}. to date {}", queryName, query, fromDate, toDate);
+    @PostMapping(value = "/download")
+    public String download(@ModelAttribute TwitterCountRequest twitterCountRequest, Model model) {
+        model.addAttribute("countRequest", twitterCountRequest);
+        logger.info("Twitter download12 - query name {}, query {}, from date {}. to date {}", twitterCountRequest.getQueryName(), twitterCountRequest.getQuery());
 
-        if (query.length() > 1024) {
-            model.put("message", "Query length exceeded beyond 1024 chars");
+        if (twitterCountRequest.getQuery().length() > 1024) {
+            model.addAttribute("message", "Query length exceeded beyond 1024 chars");
             return "hello";
         }
 
-        if (StringUtils.isEmpty(queryName) || StringUtils.isEmpty(query) || StringUtils.isEmpty(fromDate) || StringUtils.isEmpty(toDate)) {
-            model.put("message", "QueryName, query, fromDate, toDate all are required");
+        if (StringUtils.isEmpty(twitterCountRequest.getQueryName()) || StringUtils.isEmpty(twitterCountRequest.getQuery())) {
+            model.addAttribute("message", "QueryName, query, fromDate, toDate all are required");
             return "hello";
         }
 
         logger.info("Twitter download - calling download tweets");
 //        twitterService.downloadTweets(queryName, query, fromDate, toDate);
-        model.put("message", "http://twitterdata.eu-west-1.elasticbeanstalk.com/status/" + queryName);
-        logger.info("Twitter download complete for query {}", queryName);
+        jobRunrController.downloadTweets();
+        model.addAttribute("message", "http://localhost:8000/dashboard/overview" + twitterCountRequest.getQueryName());
+        logger.info("Twitter download complete for query {}", twitterCountRequest.getQueryName());
         return "hello";
     }
 }
