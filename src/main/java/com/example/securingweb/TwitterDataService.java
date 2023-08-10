@@ -13,7 +13,7 @@ import com.mashape.unirest.http.HttpResponse;
 import com.mashape.unirest.http.Unirest;
 import org.jobrunr.jobs.annotations.Job;
 import org.jobrunr.jobs.context.JobRunrDashboardLogger;
-import org.json.JSONObject;
+import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,10 +22,16 @@ import org.springframework.http.MediaType;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import org.springframework.web.util.UriUtils;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -59,121 +65,116 @@ public class TwitterDataService {
         }
     }
 
-    public int getNumberOfInvocations() {
-        return count.get();
-    }
-
-//    @Job(name = "tweets download")
     @Async("asyncExecutor")
-    public void downloadTweets(String queryName, String query) throws InterruptedException, IOException {
+    public void downloadTweets(TwitterCountRequest twitterCountRequest) throws InterruptedException, IOException {
+        SseEmitter sseEmitter = sseController.getEmitter();
 
-        logger.info("Creating twitter download request for query name {}", queryName);
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
 
-//        TwitterRequestDownload downloadRequest = new TwitterRequestDownload();
-//        downloadRequest.setQuery(query);
-//        downloadRequest.setFromDate(fromDate);
-//        downloadRequest.setToDate(toDate);
-//        downloadRequest.setMaxResults(100l);
+            String clientRegion = "eu-west-1";
+            String bucketName = "psa-tweets-data";
+            LocalDateTime timeFolderName = LocalDateTime.now();
+            String folderName = "archive-query-data/" + twitterCountRequest.getQueryName() + "/" + timeFolderName + "/page";
 
-//        SseEmitters.emptyMap();
-//        SseEmitters.addSseEmitter(queryName);
-//        SseEmitter sseEmitter = SseEmitters.getAll().get(queryName);
+            AmazonS3 s3Client = AmazonS3ClientBuilder.standard()
+                    .withRegion(clientRegion)
+//                    .withCredentials(new ProfileCredentialsProvider("eb-cli"))
+                    .withCredentials(new DefaultAWSCredentialsProviderChain())
+                    .build();
 
-        int i = 0;
-        while (i < 50) {
-            sseController.getEmitter().send("working on the query", MediaType.TEXT_PLAIN);
-            TimeUnit.SECONDS.sleep(2);
-            i++;
-        }
-//        try {
-//            ObjectMapper mapper = new ObjectMapper();
-//            mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
-//
-//            int page = 1;
-//            String clientRegion = "eu-west-1";
-//            String bucketName = "psa-tweets-data";
-//            LocalDateTime timeFolderName = LocalDateTime.now();
-//            String folderName = "archive-query-data/" + queryName + "/" + timeFolderName + "/page";
-//
-//            AmazonS3 s3Client = AmazonS3ClientBuilder.standard()
-//                    .withRegion(clientRegion)
-////                    .withCredentials(new ProfileCredentialsProvider("eb-cli"))
-//                    .withCredentials(new DefaultAWSCredentialsProviderChain())
-//                    .build();
+            s3Client.putObject(bucketName, "archive-query-data/" + twitterCountRequest.getQueryName() + "/" + timeFolderName + "/query", twitterCountRequest.getQuery());
+            sseEmitter.send("archive-query-data/" + twitterCountRequest.getQueryName() + "/" + timeFolderName + "/query", MediaType.TEXT_PLAIN);
+            long start = Clock.systemUTC().millis();
+            JSONParser parser = new JSONParser();
+            boolean error = false;
+            JSONObject jsonObject;
+            String nextToken = null;
+            String baseGetQuery = "https://api.twitter.com/2/tweets/search/recent?max_results=100&query=" + UriUtils.encode(twitterCountRequest.getQuery(), StandardCharsets.UTF_8.toString());
+            int page = 1;
 
-//            s3Client.putObject(bucketName, "archive-query-data/" + queryName + "/" + timeFolderName + "/query", downloadRequest.toString());
-//            sseEmitter.send("archive-query-data/" + queryName + "/" + timeFolderName + "/query", MediaType.TEXT_PLAIN);
-//            long start = Clock.systemUTC().millis();
-//            JSONParser parser = new JSONParser();
-//            boolean error = false;
-//            JSONObject jsonObject;
-//            while (true) {
-////                String jsonString = mapper.writeValueAsString(downloadRequest);
-//
-//                HttpResponse<String> response = Unirest.post("https://api.twitter.com/1.1/tweets/search/fullarchive/dev.json")
-//                        .header("Content-Type", "application/json")
-//                        .header("Authorization", "Bearer AAAAAAAAAAAAAAAAAAAAAL7x8QAAAAAA1dGPIO3EUkSc9MawaBuZIGfPscM%3DMD5nBaB6oSzcHWfQdm309a0IlUWr1nqpAvuKN2y55JNBxLsZ4t")
-//                        .header("cache-control", "no-cache")
-//                        .header("Postman-Token", "4d607bef-8c2d-416a-9aa8-5721051a2eb8")
-////                        .body(jsonString)
-//                        .asString();
-//
-//                jsonObject = (JSONObject) parser.parse(response.getBody());
-//                try {
-//                    ObjectMetadata metadata = new ObjectMetadata();
-//                    metadata.setContentType("application/json");
-//
-////                    if (jsonObject.get("error") != null) {
-////                        error = true;
-////                        break;
-////                    }
-//                    // Upload a file as a new object with ContentType and title specified.
-//                    PutObjectRequest request = new PutObjectRequest(bucketName,  folderName + page, response.getRawBody(), metadata);
-//                    s3Client.putObject(request);
-////                    sseEmitter.send("Uploaded " + page + " to s3 " + folderName, MediaType.TEXT_PLAIN);
-//
-//                    TimeUnit.SECONDS.sleep(2);
-//                }
-//                catch(AmazonServiceException e) {
-//                    // The call was transmitted successfully, but Amazon S3 couldn't process
-//                    // it, so it returned an error response.
-////                    sseEmitter.send(e.getMessage(), MediaType.TEXT_PLAIN);
-//                }
-//                catch(SdkClientException e) {
-//                    // Amazon S3 couldn't be contacted for a response, or the client
-//                    // couldn't parse the response from Amazon S3.
-////                    sseEmitter.send(e.getMessage(), MediaType.TEXT_PLAIN);
-//                }
-//
-////                String next = (String) jsonObject.get("next");
-////                downloadRequest.setNext(next);
-//
-////                if (next == null) {
-////                    logger.info("Total pages downloaded {}", page);
-////                    break;
-////                }
-//                ++page;
-//            }
-////            long end = Clock.systemUTC().millis();
-////            if (error) {
-////                String errorMessage = "Error occurred while downloading tweets" + ((HashMap)jsonObject.get("error")).get("message");
-//////                sseEmitter.send(errorMessage, MediaType.TEXT_PLAIN);
-////                logger.info("Error while downloading tweets for query {}", queryName);
-////                emailService.sendEmail(queryName, errorMessage);
-////            } else {
-////                logger.info("Success while downloading tweets for query {}", queryName);
-//////                String finalStatus = page + " pages uploaded to s3 in folder " + folderName + " in " + (end - start) + " ms";
-//////                sseEmitter.send(finalStatus, MediaType.TEXT_PLAIN);
-//////                emailService.sendEmail(queryName, finalStatus);
-////            }
-//        } catch (Exception e) {
-//            logger.error("Error while downloading tweets for query", e);
-//            //                sseEmitter.send("Exception occurred while downloading tweets", MediaType.TEXT_PLAIN);
-//            emailService.sendEmail(queryName, "Exception occurred while downloading tweets" + e.getMessage());
-//        } finally {
+            logger.info("Starting the tweets download process for query name {}", twitterCountRequest.getQueryName());
+            while (true) {
+                String getQuery = null;
+                if (nextToken != null) {
+                    getQuery = String.format("%s&next_token=%s", baseGetQuery, nextToken);
+                } else {
+                    getQuery = String.format("%s", baseGetQuery);
+                }
+                HttpResponse<String> response = Unirest.get(getQuery)
+                        .header("Content-Type", "application/json")
+                        .header("Authorization", "Bearer AAAAAAAAAAAAAAAAAAAAAL7x8QAAAAAA1dGPIO3EUkSc9MawaBuZIGfPscM%3DMD5nBaB6oSzcHWfQdm309a0IlUWr1nqpAvuKN2y55JNBxLsZ4t")
+                        .header("cache-control", "no-cache")
+                        .header("Postman-Token", "4d607bef-8c2d-416a-9aa8-5721051a2eb8")
+                        .asString();
+                jsonObject = (JSONObject) parser.parse(response.getBody());
+                if (response.getStatus() == 200) {
+                    try {
+                        // Upload a file as a new object with ContentType and title specified.
+                        ObjectMetadata metadata = new ObjectMetadata();
+                        metadata.setContentType("application/json");
+
+                        PutObjectRequest request = new PutObjectRequest(bucketName,  folderName + page, response.getRawBody(), metadata);
+                        s3Client.putObject(request);
+                        sseEmitter.send("Uploaded page " + page + " to s3 folder " + folderName + page, MediaType.TEXT_PLAIN);
+//                        Files.write(Paths.get("/Users/maheshogale/Documents/source/twitterv2/page"+page), response.getRawBody().readAllBytes());
+
+
+                        nextToken = (String)((HashMap) jsonObject.get("meta")).get("next_token");
+                        if (nextToken == null) {
+                            break;
+                        }
+
+                    } catch(AmazonServiceException e) {
+                        // The call was transmitted successfully, but Amazon S3 couldn't process
+                        // it, so it returned an error response.
+                        sseEmitter.send(e.getMessage(), MediaType.TEXT_PLAIN);
+                    } catch(SdkClientException e) {
+                        // Amazon S3 couldn't be contacted for a response, or the client
+                        // couldn't parse the response from Amazon S3.
+                        sseEmitter.send(e.getMessage(), MediaType.TEXT_PLAIN);
+                    }
+                    ++page;
+                }
+                if (response.getStatus() == 400) {
+                    if (jsonObject.get("errors") != null) {
+                        error = true;
+                        break;
+                    }
+                }
+                if (response.getStatus() == 429) {
+                    String rateLimitResetTimeString = response.getHeaders().getFirst("x-rate-limit-reset");
+                    sseEmitter.send("Rate limit reached, pausing the process for now, going to try after = " + LocalDateTime.ofInstant(Instant.ofEpochSecond(Long.valueOf(rateLimitResetTimeString)), ZoneOffset.UTC));
+
+                    long currentTime = Instant.now().getEpochSecond();
+                    long rateLimitResetTime = Long.valueOf(rateLimitResetTimeString);
+
+                    // get current epoch
+                    // put thread to sleep for resetEpoch - current epoch + 5 sec more as buffer
+                    TimeUnit.SECONDS.sleep((rateLimitResetTime - currentTime) + 5);
+                    logger.info("Rate limit reached, pausing the process for now for query name {}", twitterCountRequest.getQueryName());
+                }
+            }
+            long end = Clock.systemUTC().millis();
+            if (error) {
+                String errorMessage = (String)jsonObject.get("detail");
+                sseEmitter.send(errorMessage);
+                logger.info("Error happened while getting query count for query name {}", twitterCountRequest.getQueryName());
+                emailService.sendEmail(twitterCountRequest.getQueryName(), errorMessage);
+            } else {
+                logger.info("Success while downloading tweets for query {}", twitterCountRequest.getQueryName());
+                String finalStatus = page + " pages uploaded to s3 in folder " + folderName + " in " + (end - start) + " ms";
+                sseEmitter.send(finalStatus, MediaType.TEXT_PLAIN);
+                emailService.sendEmail(twitterCountRequest.getQueryName(), finalStatus);
+            }
+        } catch(Exception e){
+            logger.error("Error while downloading tweets for query", e);
+            sseEmitter.send("Exception occurred while downloading tweets, " + e.getMessage(), MediaType.TEXT_PLAIN);
+            emailService.sendEmail(twitterCountRequest.getQueryName(), "Exception occurred while downloading tweets" + e.getMessage());
+        } finally{
             sseController.getEmitter().complete();
-//            SseEmitters.getAll().remove(queryName);
-//        }
-        logger.info("tweets downloaded successfully");
+        }
+        logger.info("tweets downloaded successfully for query{}", twitterCountRequest.getQueryName());
     }
 }

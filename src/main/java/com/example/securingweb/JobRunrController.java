@@ -23,7 +23,7 @@ public class JobRunrController {
 
     public String downloadTweets() {
 
-        jobScheduler.enqueue(() -> twitterDataService.downloadTweets("", ""));
+        jobScheduler.enqueue(() -> twitterDataService.downloadTweets(null));
         return "job enqueued successfully";
     }
 }
