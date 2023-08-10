@@ -11,7 +11,7 @@
 	<packaging>war</packaging>
 	<groupId>com.example</groupId>
 	<artifactId>twitterv2</artifactId>
-	<version>0.0.3</version>
+	<version>0.0.4</version>
 	<name>twitterv2</name>
 	<description>twitterv2</description>
 
