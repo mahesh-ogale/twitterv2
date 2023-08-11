@@ -1,19 +1,38 @@
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="https://www.thymeleaf.org">
-    <head>
-        <title>Twitter data download</title>
-    </head>
-    <body>
-        <div th:if="${param.error}">
+<head>
+    <title>Twitter data download</title>
+    <link rel="stylesheet" th:href="@{styles.css}" type="text/css"/>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+            href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;900&display=swap"
+            rel="stylesheet"
+    />
+</head>
+<body>
+<div id="container">
+    <div id="login_box">
+        <div th:if="${param.error}" class="error_msg">
             Invalid username and password.
         </div>
-        <div th:if="${param.logout}">
+        <div th:if="${param.logout}" class="error_msg">
             You have been logged out.
         </div>
         <form th:action="@{/login}" method="post">
-            <div><label> User Name : <input type="text" name="username"/> </label></div>
-            <div><label> Password: <input type="password" name="password"/> </label></div>
-            <div><input type="submit" value="Sign In"/></div>
+            <div id="user_inpt_cont">
+                <div class="user_inpt">
+                    <label> UserName: <input type="text" name="username" /> </label>
+                </div>
+                <div class="user_inpt">
+                    <label>
+                        Password: <input type="password" name="password" />
+                    </label>
+                </div>
+                <div class="s_btn"><input type="submit" value="Sign In" /></div>
+            </div>
         </form>
-    </body>
+    </div>
+</div>
+</body>
 </html>

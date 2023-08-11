@@ -13,6 +13,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriUtils;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -101,24 +102,25 @@ public class TwitterDataController {
     }
 
     @PostMapping(value = "/download")
-    public String download(@ModelAttribute TwitterCountRequest twitterCountRequest, Model model) {
+    public String download(@ModelAttribute TwitterCountRequest twitterCountRequest, Model model) throws IOException, InterruptedException {
         model.addAttribute("countRequest", twitterCountRequest);
-        logger.info("Twitter download12 - query name {}, query {}, from date {}. to date {}", twitterCountRequest.getQueryName(), twitterCountRequest.getQuery());
-
-        if (twitterCountRequest.getQuery().length() > 1024) {
-            model.addAttribute("message", "Query length exceeded beyond 1024 chars");
+        logger.info("Twitter download - query name {}, query {}", twitterCountRequest.getQueryName(), twitterCountRequest.getQuery());
+        int allowedQueryLength = 512;
+        if (!twitterCountRequest.getBasicAccess()) {
+            allowedQueryLength = 1024;
+        }
+        if (twitterCountRequest.getQuery().length() > allowedQueryLength) {
+            model.addAttribute("message", String.format("Allowed query length is {}", allowedQueryLength));
             return "hello";
         }
 
         if (StringUtils.isEmpty(twitterCountRequest.getQueryName()) || StringUtils.isEmpty(twitterCountRequest.getQuery())) {
-            model.addAttribute("message", "QueryName, query, fromDate, toDate all are required");
+            model.addAttribute("message", "QueryName, query are required");
             return "hello";
         }
-
         logger.info("Twitter download - calling download tweets");
-//        twitterService.downloadTweets(queryName, query, fromDate, toDate);
-        jobRunrController.downloadTweets();
-        model.addAttribute("message", "http://localhost:8000/dashboard/overview" + twitterCountRequest.getQueryName());
+        twitterService.downloadTweets(twitterCountRequest);
+        model.addAttribute("message", "Download is in progress, see the status below");
         logger.info("Twitter download complete for query {}", twitterCountRequest.getQueryName());
         return "hello";
     }
