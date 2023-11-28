@@ -46,12 +46,84 @@
             <br />
             Twitter Query:<br />
             <textarea
-                    required="true"
+                    required
                     th:field="*{query}"
                     rows="10"
                     cols="70"
                     maxlength="1024"
             ></textarea>
+            <br />
+            Start Time:
+            <input
+                    type="text"
+                    th:field="*{startTime}"
+                    size="50"
+                    maxlength="50"
+            />
+            <br />
+            End Time:
+            <input
+                    type="text"
+                    th:field="*{endTime}"
+                    size="50"
+                    maxlength="50"
+            />
+            <br />
+            Expansions:<br />
+            <textarea
+                    th:field="*{expansions}"
+                    rows="10"
+                    cols="30"
+                    maxlength="300"
+            />
+            <br />
+            Media Fields:<br />
+            <textarea
+                    th:field="*{mediaFields}"
+                    rows="10"
+                    cols="30"
+                    maxlength="300"
+            />
+            <br />
+            Place Fields:
+            <input
+                    type="text"
+                    th:field="*{placeFields}"
+                    size="100"
+                    maxlength="100"
+            />
+            <br />
+            Poll Fields:
+            <input
+                    type="text"
+                    th:field="*{pollFields}"
+                    size="100"
+                    maxlength="100"
+            />
+            <br />
+            Tweet Fields:<br />
+            <textarea
+                    th:field="*{tweetFields}"
+                    rows="10"
+                    cols="30"
+                    maxlength="300"
+            />
+            <br />
+            User Fields:<br />
+            <textarea
+                    th:field="*{userFields}"
+                    rows="10"
+                    cols="30"
+                    maxlength="300"
+            />
+            <br />
+            Sort Order:
+            <input
+                    type="text"
+                    th:field="*{sortOrder}"
+                    maxlength="20"
+            />
+            <br />
 
             <div id="count_message"></div>
             <br />

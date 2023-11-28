@@ -12,7 +12,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mashape.unirest.http.HttpResponse;
 import com.mashape.unirest.http.Unirest;
 import org.jobrunr.jobs.annotations.Job;
-import org.jobrunr.jobs.context.JobRunrDashboardLogger;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.slf4j.Logger;
@@ -26,8 +25,6 @@ import org.springframework.web.util.UriUtils;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -41,7 +38,7 @@ public class TwitterDataService {
 
     public static final long EXECUTION_TIME = 5000L;
 
-    private Logger logger = new JobRunrDashboardLogger(LoggerFactory.getLogger(getClass()));
+    private Logger logger = LoggerFactory.getLogger(TwitterDataService.class);
 
     private AtomicInteger count = new AtomicInteger();
 
@@ -85,14 +82,48 @@ public class TwitterDataService {
                     .build();
 
             s3Client.putObject(bucketName, "archive-query-data/" + twitterCountRequest.getQueryName() + "/" + timeFolderName + "/query", twitterCountRequest.getQuery());
-            sseEmitter.send("archive-query-data/" + twitterCountRequest.getQueryName() + "/" + timeFolderName + "/query", MediaType.TEXT_PLAIN);
+            postToSseIfNotNull("archive-query-data/" + twitterCountRequest.getQueryName() + "/" + timeFolderName + "/query", sseEmitter);
             long start = Clock.systemUTC().millis();
             JSONParser parser = new JSONParser();
             boolean error = false;
             JSONObject jsonObject;
             String nextToken = null;
-            String baseGetQuery = "https://api.twitter.com/2/tweets/search/recent?max_results=100&query=" + UriUtils.encode(twitterCountRequest.getQuery(), StandardCharsets.UTF_8.toString());
+            StringBuilder baseGetQuery = new StringBuilder(String.format("https://api.twitter.com/2/tweets/search/%s?&query=%s", twitterCountRequest.getBasicAccess() ? "recent": "all",
+                    UriUtils.encode(twitterCountRequest.getQuery(), StandardCharsets.UTF_8.toString())));
             int page = 1;
+
+            if (twitterCountRequest.getBasicAccess()) {
+                baseGetQuery.append("&max_results=100");
+            } else {
+                baseGetQuery.append("&max_results=500");
+            }
+            if (!twitterCountRequest.getStartTime().isEmpty()) {
+                baseGetQuery.append(String.format("&start_time=%s", twitterCountRequest.getStartTime()));
+            }
+            if (!twitterCountRequest.getEndTime().isEmpty()) {
+                baseGetQuery.append(String.format("&end_time=%s", twitterCountRequest.getEndTime()));
+            }
+            if (!twitterCountRequest.getExpansions().isEmpty()) {
+                baseGetQuery.append(String.format("&expansions=%s", twitterCountRequest.getExpansions()));
+            }
+            if (!twitterCountRequest.getMediaFields().isEmpty()) {
+                baseGetQuery.append(String.format("&media.fields=%s", twitterCountRequest.getMediaFields()));
+            }
+            if (!twitterCountRequest.getPlaceFields().isEmpty()) {
+                baseGetQuery.append(String.format("&place.fields=%s", twitterCountRequest.getPlaceFields()));
+            }
+            if (!twitterCountRequest.getPollFields().isEmpty()) {
+                baseGetQuery.append(String.format("&poll.fields=%s", twitterCountRequest.getPollFields()));
+            }
+            if (!twitterCountRequest.getTweetFields().isEmpty()) {
+                baseGetQuery.append(String.format("&tweet.fields=%s", twitterCountRequest.getTweetFields()));
+            }
+            if (!twitterCountRequest.getUserFields().isEmpty()) {
+                baseGetQuery.append(String.format("&user.fields=%s", twitterCountRequest.getUserFields()));
+            }
+            if (!twitterCountRequest.getSortOrder().isEmpty()) {
+                baseGetQuery.append(String.format("&sort_order=%s", twitterCountRequest.getSortOrder()));
+            }
 
             logger.info("Starting the tweets download process for query name {}", twitterCountRequest.getQueryName());
             while (true) {
@@ -117,7 +148,7 @@ public class TwitterDataService {
 
                         PutObjectRequest request = new PutObjectRequest(bucketName,  folderName + page, response.getRawBody(), metadata);
                         s3Client.putObject(request);
-                        sseEmitter.send("Uploaded page " + page + " to s3 folder " + folderName + page, MediaType.TEXT_PLAIN);
+                        postToSseIfNotNull("Uploaded page " + page + " to s3 folder " + folderName + page, sseEmitter);
 //                        Files.write(Paths.get("/Users/maheshogale/Documents/source/twitterv2/page"+page), response.getRawBody().readAllBytes());
 
 
@@ -129,11 +160,11 @@ public class TwitterDataService {
                     } catch(AmazonServiceException e) {
                         // The call was transmitted successfully, but Amazon S3 couldn't process
                         // it, so it returned an error response.
-                        sseEmitter.send(e.getMessage(), MediaType.TEXT_PLAIN);
+                        postToSseIfNotNull(e.getMessage(), sseEmitter);
                     } catch(SdkClientException e) {
                         // Amazon S3 couldn't be contacted for a response, or the client
                         // couldn't parse the response from Amazon S3.
-                        sseEmitter.send(e.getMessage(), MediaType.TEXT_PLAIN);
+                        postToSseIfNotNull(e.getMessage(), sseEmitter);
                     }
                     ++page;
                 }
@@ -145,36 +176,46 @@ public class TwitterDataService {
                 }
                 if (response.getStatus() == 429) {
                     String rateLimitResetTimeString = response.getHeaders().getFirst("x-rate-limit-reset");
-                    sseEmitter.send("Rate limit reached, pausing the process for now, going to try after = " + LocalDateTime.ofInstant(Instant.ofEpochSecond(Long.valueOf(rateLimitResetTimeString)), ZoneOffset.UTC));
-
                     long currentTime = Instant.now().getEpochSecond();
                     long rateLimitResetTime = Long.valueOf(rateLimitResetTimeString);
-
+                    sseEmitter = null;
+                    if ((rateLimitResetTime - currentTime) > 1200) {
+                        logger.info("Exiting the process as rate limit reset time is too high {}", LocalDateTime.ofInstant(Instant.ofEpochSecond(Long.valueOf(rateLimitResetTimeString)), ZoneOffset.UTC));
+                        break;
+                    }
+                    postToSseIfNotNull("Rate limit reached, pausing the process for now, going to try after = " + LocalDateTime.ofInstant(Instant.ofEpochSecond(Long.valueOf(rateLimitResetTimeString)), ZoneOffset.UTC),
+                            sseEmitter);
                     // get current epoch
                     // put thread to sleep for resetEpoch - current epoch + 5 sec more as buffer
                     TimeUnit.SECONDS.sleep((rateLimitResetTime - currentTime) + 5);
-                    logger.info("Rate limit reached, pausing the process for now for query name {}", twitterCountRequest.getQueryName());
                 }
             }
             long end = Clock.systemUTC().millis();
             if (error) {
                 String errorMessage = (String)jsonObject.get("detail");
-                sseEmitter.send(errorMessage);
+                postToSseIfNotNull(errorMessage, sseEmitter);
                 logger.info("Error happened while getting query count for query name {}", twitterCountRequest.getQueryName());
                 emailService.sendEmail(twitterCountRequest.getQueryName(), errorMessage);
             } else {
                 logger.info("Success while downloading tweets for query {}", twitterCountRequest.getQueryName());
                 String finalStatus = page + " pages uploaded to s3 in folder " + folderName + " in " + (end - start) + " ms";
-                sseEmitter.send(finalStatus, MediaType.TEXT_PLAIN);
+                postToSseIfNotNull(finalStatus, sseEmitter);
                 emailService.sendEmail(twitterCountRequest.getQueryName(), finalStatus);
             }
         } catch(Exception e){
             logger.error("Error while downloading tweets for query", e);
-            sseEmitter.send("Exception occurred while downloading tweets, " + e.getMessage(), MediaType.TEXT_PLAIN);
+            postToSseIfNotNull("Exception occurred while downloading tweets, " + e.getMessage(), sseEmitter);
             emailService.sendEmail(twitterCountRequest.getQueryName(), "Exception occurred while downloading tweets" + e.getMessage());
         } finally{
-            sseController.getEmitter().complete();
+            sseEmitter.complete();
         }
         logger.info("tweets downloaded successfully for query{}", twitterCountRequest.getQueryName());
+    }
+
+    private void postToSseIfNotNull(String message, SseEmitter sseEmitter) throws IOException {
+        logger.info(message);
+        if (sseEmitter != null) {
+            sseEmitter.send(message, MediaType.TEXT_PLAIN);
+        }
     }
 }

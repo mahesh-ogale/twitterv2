@@ -52,7 +52,7 @@ public class TwitterDataController {
         model.addAttribute("countRequest", twitterCountRequest);
         logger.info("Processing tweets count request with basic access = "+ twitterCountRequest.getBasicAccess());
 
-        int allowedQueryLength = 512;
+        int allowedQueryLength = 1024;
 
         if (StringUtils.isEmpty(twitterCountRequest.getQueryName()) || StringUtils.isEmpty(twitterCountRequest.getQuery())) {
             model.addAttribute("message", "QueryName, query are required");
@@ -70,8 +70,12 @@ public class TwitterDataController {
 
         JSONParser parser = new JSONParser();
         Unirest.setTimeouts(0, 0);
+
+        StringBuilder countUrl = new StringBuilder(String.format("https://api.twitter.com/2/tweets/counts/%s?granularity=day&query=%s",
+                twitterCountRequest.getBasicAccess() ? "recent": "all",
+                UriUtils.encode(twitterCountRequest.getQuery(), StandardCharsets.UTF_8.toString())));
         try {
-            HttpResponse<String> response = Unirest.get("https://api.twitter.com/2/tweets/counts/recent?granularity=day&query="+ UriUtils.encode(twitterCountRequest.getQuery(), StandardCharsets.UTF_8.toString()))
+            HttpResponse<String> response = Unirest.get(countUrl.toString())
                     .header("Authorization", "Bearer AAAAAAAAAAAAAAAAAAAAAL7x8QAAAAAA1dGPIO3EUkSc9MawaBuZIGfPscM%3DMD5nBaB6oSzcHWfQdm309a0IlUWr1nqpAvuKN2y55JNBxLsZ4t")
                     .header("Cookie", "guest_id=v1%3A169114943501622797; guest_id_ads=v1%3A169114943501622797; guest_id_marketing=v1%3A169114943501622797; personalization_id=\"v1_qK+w8TOGRs8/240Jkks7wQ==\"")
                     .asString();
