@@ -88,8 +88,42 @@ public class TwitterDataService {
             boolean error = false;
             JSONObject jsonObject;
             String nextToken = null;
-            String baseGetQuery = "https://api.twitter.com/2/tweets/search/recent?max_results=100&query=" + UriUtils.encode(twitterCountRequest.getQuery(), StandardCharsets.UTF_8.toString());
+            StringBuilder baseGetQuery = new StringBuilder(String.format("https://api.twitter.com/2/tweets/search/%s?&query=%s", twitterCountRequest.getBasicAccess() ? "recent": "all",
+                    UriUtils.encode(twitterCountRequest.getQuery(), StandardCharsets.UTF_8.toString())));
             int page = 1;
+
+            if (twitterCountRequest.getBasicAccess()) {
+                baseGetQuery.append("&max_results=100");
+            } else {
+                baseGetQuery.append("&max_results=500");
+            }
+            if (!twitterCountRequest.getStartTime().isEmpty()) {
+                baseGetQuery.append(String.format("&start_time=%s", twitterCountRequest.getStartTime()));
+            }
+            if (!twitterCountRequest.getEndTime().isEmpty()) {
+                baseGetQuery.append(String.format("&end_time=%s", twitterCountRequest.getEndTime()));
+            }
+            if (!twitterCountRequest.getExpansions().isEmpty()) {
+                baseGetQuery.append(String.format("&expansions=%s", twitterCountRequest.getExpansions()));
+            }
+            if (!twitterCountRequest.getMediaFields().isEmpty()) {
+                baseGetQuery.append(String.format("&media.fields=%s", twitterCountRequest.getMediaFields()));
+            }
+            if (!twitterCountRequest.getPlaceFields().isEmpty()) {
+                baseGetQuery.append(String.format("&place.fields=%s", twitterCountRequest.getPlaceFields()));
+            }
+            if (!twitterCountRequest.getPollFields().isEmpty()) {
+                baseGetQuery.append(String.format("&poll.fields=%s", twitterCountRequest.getPollFields()));
+            }
+            if (!twitterCountRequest.getTweetFields().isEmpty()) {
+                baseGetQuery.append(String.format("&tweet.fields=%s", twitterCountRequest.getTweetFields()));
+            }
+            if (!twitterCountRequest.getUserFields().isEmpty()) {
+                baseGetQuery.append(String.format("&user.fields=%s", twitterCountRequest.getUserFields()));
+            }
+            if (!twitterCountRequest.getSortOrder().isEmpty()) {
+                baseGetQuery.append(String.format("&sort_order=%s", twitterCountRequest.getSortOrder()));
+            }
 
             logger.info("Starting the tweets download process for query name {}", twitterCountRequest.getQueryName());
             while (true) {
